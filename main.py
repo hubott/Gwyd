@@ -1,7 +1,8 @@
 import pandas as pd
 import ast
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from datetime import datetime, timedelta
+from typing import List
 
 
 app = FastAPI()
@@ -18,7 +19,7 @@ app.add_middleware(
 def get_class(
     min_val: int = 1000,
     days: int = 30,
-    player_class: str = "Mage",
+    player_classes: List[str] = Query(default=["Mage"]),
     KP: str = "GKP"):
     url2 = "https://docs.google.com/spreadsheets/d/1Izu2wSmi0aEQCWTvfLAXX0ucXR2223ILzFxTiQXcl80/gviz/tq?tqx=out:csv&sheet={KP}".format(KP=KP)
     url3 = "https://docs.google.com/spreadsheets/d/1Izu2wSmi0aEQCWTvfLAXX0ucXR2223ILzFxTiQXcl80/gviz/tq?tqx=out:csv&sheet=Roster"
@@ -26,38 +27,42 @@ def get_class(
     last = "Last Raid"
     dfRoster = pd.read_csv(url3)
 
-    # Get class names
-    class_target = player_class.lower()
-    class_target = class_target.capitalize()
-    class_specific = dfRoster.loc[dfRoster["Class"] == class_target, "Name"]
+    results = []
 
-    dfkp = pd.read_csv(url2)
-    
+    for cls in player_classes:
+        cls_clean = cls.lower().capitalize()  # normalize class name
+        class_specific = dfRoster.loc[dfRoster["Class"] == cls_clean, "Name"]
 
+        dfkp = pd.read_csv(url2)
 
+        # Clean + filter in one pipeline
+        dfkp_class = (
+            dfkp
+            .assign(**{
+                last: pd.to_datetime(dfkp[last], format="mixed", dayfirst=True, errors="coerce")
+            })
+            .dropna(subset=[last])
+            .loc[
+                lambda d: d["Player Name"].isin(class_specific)
+                & (d["Current"] > min_val)
+                & (d[last] >= datetime.now() - timedelta(days=days))
+            ]
+            .sort_values("Current", ascending=False)
+            [["Player Name", "Current", last]]
+        )
 
-    # Clean + filter in one pipeline
-    dfkp_class = (
-        dfkp
-        .assign(**{
-            last: pd.to_datetime(dfkp[last], format="mixed", dayfirst=True, errors="coerce")
+        results.append({
+            "class": cls_clean,
+            "players": dfkp_class.to_dict(orient="records")
         })
-        .dropna(subset=[last])
-        .loc[
-            lambda d: d["Player Name"].isin(class_specific)
-            & (d["Current"] > min_val)
-            & (d[last] >= datetime.now() - timedelta(days=days))
-        ]
-        .sort_values("Current", ascending=False)
-        [["Player Name", "Current", last]]
-    )
 
-    return dfkp_class.to_dict(orient="records")
+    return results
 
 @app.get("/individual")
 def get_individual(
     character: str = "FrozenRage",
-    days: int = 30
+    days: int = 30,
+    KP: str = "RBPP"
 ):
 
     character = character.lower()
@@ -75,7 +80,7 @@ def get_individual(
     cutoff = datetime.now() - timedelta(days=days)
     df_recent = df[df["Datetime"] >= cutoff]
 
-    df_rbpp = df_recent[df_recent["KP Pool"] == "RBPP"]
+    df_rbpp = df_recent[df_recent["KP Pool"] == KP]
 
     # ---- COUNT 1: total RBPP bosses ----
     total_rbpp = len(df_rbpp)
