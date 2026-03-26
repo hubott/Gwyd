@@ -93,8 +93,8 @@ def get_individual(
 
     percentage = round(count_with_attendee / total_rbpp * 100, 2) if total_rbpp > 0 else 0
     return {
-        "character": character,
-        "total_rbpp_bosses": total_rbpp,
-        "count_with_attendee": count_with_attendee,
-        "percentage": percentage
+        "Character": character,
+        "Total Bosses in last {days} days": total_rbpp,
+        "Number attended by {character}": count_with_attendee,
+        "Percentage": percentage
     }
