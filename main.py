@@ -3,7 +3,17 @@ import ast
 from fastapi import FastAPI
 from datetime import datetime, timedelta
 
+
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # later restrict this
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 @app.get("/class")
 def get_class(
     min_val: int = 1000,
